@@ -7,6 +7,8 @@ from openai import OpenAI
 from qdrant_client import QdrantClient
 import psycopg2
 from src.api import chat_router, personalize_router
+from src.api.ingestion_api import router as ingestion_router
+from src.api.retrieval_api import router as retrieval_router, add_rate_limit_handler
 import logging
 
 # Import the RAG service
@@ -114,6 +116,11 @@ app.add_middleware(
 # Include API routers
 app.include_router(chat_router)
 app.include_router(personalize_router)
+app.include_router(ingestion_router)
+app.include_router(retrieval_router)
+
+# Add rate limit handler
+add_rate_limit_handler(app)
 
 @app.get("/")
 def read_root():

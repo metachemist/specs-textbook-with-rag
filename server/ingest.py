@@ -1,178 +1,76 @@
-import os
-import re
-from pathlib import Path
+#!/usr/bin/env python3
+"""
+Main ingestion script for the URL Ingestion & Embedding Pipeline.
+
+This script fetches content from URLs, cleans and chunks the text,
+generates embeddings using Cohere models, and stores embeddings and 
+metadata in Qdrant Cloud.
+"""
+
+import argparse
+import sys
 from typing import List
-import hashlib
+from src.services.ingestion_pipeline import IngestionPipeline
 
-from dotenv import load_dotenv
-from qdrant_client import QdrantClient
-from qdrant_client.http import models
-from openai import OpenAI
 
-# Load environment variables
-load_dotenv()
-
-# Initialize clients
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-qdrant_url = os.getenv("QDRANT_URL")
-qdrant_api_key = os.getenv("QDRANT_API_KEY")
-
-if qdrant_api_key and qdrant_url:
-    qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
-elif qdrant_url:
-    qdrant_client = QdrantClient(url=qdrant_url)
-else:
-    raise Exception("Qdrant URL not found in environment variables")
-
-def chunk_text(text: str, chunk_size: int = 500) -> List[str]:
+def main(urls: List[str], 
+         chunk_size: int = 800, 
+         overlap: int = 100, 
+         force_reprocess: bool = False) -> int:
     """
-    Split text into chunks of approximately chunk_size characters.
-    Tries to break at sentence boundaries when possible.
-    """
-    chunks = []
-    start = 0
+    Main function to run the full ingestion pipeline end-to-end.
     
-    while start < len(text):
-        end = start + chunk_size
+    Args:
+        urls: List of URLs to process
+        chunk_size: Target size for text chunks in tokens
+        overlap: Overlap between chunks in tokens
+        force_reprocess: Whether to reprocess content even if previously processed
         
-        # If we're not at the end, try to find a sentence boundary
-        if end < len(text):
-            # Look for sentence endings (., !, ?) near the end
-            snippet = text[start:end]
-            last_sentence_end = max(
-                snippet.rfind('.'),
-                snippet.rfind('!'),
-                snippet.rfind('?')
-            )
-            
-            # If we found a sentence boundary, use it
-            if last_sentence_end != -1 and last_sentence_end > len(snippet) * 0.7:  # At least 70% through the chunk
-                end = start + last_sentence_end + 1
-            else:
-                # Otherwise, look for a word boundary
-                last_space = snippet.rfind(' ')
-                if last_space != -1 and last_space > len(snippet) * 0.8:  # At least 80% through the chunk
-                    end = start + last_space
-        
-        chunk = text[start:end].strip()
-        if chunk:  # Only add non-empty chunks
-            chunks.append(chunk)
-        
-        start = end
-    
-    return chunks
-
-def embed_text(text: str) -> List[float]:
+    Returns:
+        Exit code (0 for success, non-zero for failure)
     """
-    Uses OpenAI text-embedding-3-small to convert text to vectors.
-    """
-    try:
-        response = openai_client.embeddings.create(
-            input=text,
-            model="text-embedding-3-small"
-        )
-        return response.data[0].embedding
-    except Exception as e:
-        print(f"❌ Error embedding text: {e}")
-        raise e
-
-def ingest_file(file_path: Path, collection_name: str = "textbook_knowledge"):
-    """
-    Process a single markdown file and ingest its content into Qdrant.
-    """
-    print(f"Processing {file_path}")
+    if not urls:
+        print("Error: No URLs provided to process.")
+        return 1
     
-    # Read the file content
-    with open(file_path, 'r', encoding='utf-8') as f:
-        content = f.read()
+    print(f"Starting ingestion pipeline for {len(urls)} URLs...")
+    print(f"Chunk size: {chunk_size}, Overlap: {overlap}, Force reprocess: {force_reprocess}")
     
-    # Extract title from the file (first heading)
-    title_match = re.search(r'^#\s+(.+)$', content, re.MULTILINE)
-    title = title_match.group(1) if title_match else file_path.stem
+    # Create and run the ingestion pipeline
+    pipeline = IngestionPipeline()
+    result = pipeline.run_pipeline(
+        urls=urls,
+        chunk_size=chunk_size,
+        overlap=overlap,
+        force_reprocess=force_reprocess
+    )
     
-    # Remove markdown headers and metadata from content
-    # This regex removes YAML frontmatter if present
-    content = re.sub(r'^---\n.*?\n---\n', '', content, flags=re.DOTALL)
-    
-    # Split content into chunks
-    chunks = chunk_text(content)
-    
-    points = []
-    for i, chunk in enumerate(chunks):
-        # Create a unique ID for this chunk
-        chunk_id = hashlib.md5(f"{file_path}_{i}".encode()).hexdigest()
-        
-        # Embed the chunk
-        try:
-            vector = embed_text(chunk)
-        except Exception as e:
-            print(f"❌ Failed to embed chunk from {file_path}: {e}")
-            continue
-        
-        # Create a Qdrant point
-        point = models.PointStruct(
-            id=chunk_id,
-            vector=vector,
-            payload={
-                "content": chunk,
-                "source": str(file_path.relative_to("../web/docs")),
-                "title": title,
-                "file_path": str(file_path)
-            }
-        )
-        points.append(point)
-    
-    # Upload to Qdrant
-    if points:
-        try:
-            # Create collection if it doesn't exist
-            try:
-                qdrant_client.get_collection(collection_name)
-            except:
-                # Collection doesn't exist, create it
-                qdrant_client.create_collection(
-                    collection_name=collection_name,
-                    vectors_config=models.VectorParams(size=1536, distance=models.Distance.COSINE)  # OpenAI embedding size
-                )
-            
-            # Upload points
-            qdrant_client.upsert(
-                collection_name=collection_name,
-                points=points
-            )
-            
-            print(f"✅ Ingested {file_path} ({len(points)} chunks)")
-        except Exception as e:
-            print(f"❌ Failed to upload {file_path} to Qdrant: {e}")
+    if result["success"]:
+        print(f"Pipeline completed successfully: {result['message']}")
+        print(f"Results: {result['data']}")
+        return 0
     else:
-        print(f"⚠️ No content to upload for {file_path}")
+        print(f"Pipeline failed: {result['error']}")
+        return 1
 
-def main():
-    """
-    Main function to scan the docs directory and ingest all markdown files.
-    """
-    docs_path = Path("../web/docs")
-    
-    if not docs_path.exists():
-        print(f"❌ Docs directory {docs_path} does not exist")
-        return
-    
-    # Find all markdown files in the docs directory
-    md_files = list(docs_path.rglob("*.md"))
-    
-    if not md_files:
-        print("No markdown files found in the docs directory")
-        return
-    
-    print(f"Found {len(md_files)} markdown files to process")
-    
-    for file_path in md_files:
-        try:
-            ingest_file(file_path)
-        except Exception as e:
-            print(f"❌ Error processing file {file_path}: {e}")
-    
-    print("Ingestion complete!")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="URL Ingestion & Embedding Pipeline")
+    parser.add_argument("urls", nargs="+", help="URLs to process")
+    parser.add_argument("--chunk-size", type=int, default=800, 
+                       help="Target size for text chunks in tokens (default: 800)")
+    parser.add_argument("--overlap", type=int, default=100, 
+                       help="Overlap between chunks in tokens (default: 100)")
+    parser.add_argument("--force-reprocess", action="store_true", 
+                       help="Re-process content even if previously processed")
+    
+    args = parser.parse_args()
+    
+    exit_code = main(
+        urls=args.urls,
+        chunk_size=args.chunk_size,
+        overlap=args.overlap,
+        force_reprocess=args.force_reprocess
+    )
+    
+    sys.exit(exit_code)

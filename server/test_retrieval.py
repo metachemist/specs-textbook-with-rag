@@ -12,21 +12,21 @@ def main():
     Main function to run the validation script.
     Performs a sample query and prints the raw search results to the console.
     """
-    print("🔍 Starting RAG retrieval validation...")
+    print("Starting RAG retrieval validation...")
     
     # Sample query for validation
     sample_query = "What is a node?"
     
-    print(f"💬 Querying: '{sample_query}'")
+    print(f"Querying: '{sample_query}'")
     
     # Perform the search
     result = search_knowledge_base(sample_query)
     
     if result["success"]:
-        print("✅ Search completed successfully")
-        
+        print("Search completed successfully")
+
         # Print raw search results (score + payload) to the console
-        print("\n📊 Raw search results:")
+        print("\nRaw search results:")
         print("-" * 50)
         
         if "data" in result and hasattr(result["data"], "chunks"):
@@ -42,9 +42,9 @@ def main():
         else:
             print("No results returned from the search.")
             
-        print(f"\n📈 Total results found: {len(result['data'].chunks) if 'data' in result and hasattr(result['data'], 'chunks') else 0}")
+        print(f"\nTotal results found: {len(result['data'].chunks) if 'data' in result and hasattr(result['data'], 'chunks') else 0}")
     else:
-        print(f"❌ Search failed: {result['message']}")
+        print(f"Search failed: {result['message']}")
         if "error" in result:
             print(f"Error details: {result['error']}")
 

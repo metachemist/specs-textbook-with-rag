@@ -1,142 +1,233 @@
-# Implementation Tasks: RAG Retrieval & Validation Pipeline
+---
 
-**Feature**: RAG Retrieval & Validation Pipeline | **Date**: 2025-12-24 | **Branch**: `003-rag-retrieval-pipeline`
+description: "Task list for RAG Retrieval & Validation Pipeline implementation"
+---
 
-## Overview
+# Tasks: RAG Retrieval & Validation Pipeline
 
-This document outlines the implementation tasks for the RAG retrieval pipeline that accepts text queries, converts them to vector embeddings using Cohere, performs cosine similarity search in Qdrant Cloud, and returns the most relevant text chunks with metadata.
+**Input**: Design documents from `/specs/003-rag-retrieval-pipeline/`
+**Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Implementation Strategy**: Build the feature incrementally, starting with foundational components, then implementing each user story in priority order. Each user story should be independently testable and deliver value on its own.
+**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification.
 
-## Dependencies
+**Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
-- **US1 (P1) Query Embedding** → **US2 (P1) Vector Search** → **US3 (P1) Retrieval Result Validation**
-- **US4 (P2) Standalone Testing** depends on all other user stories
+## Format: `[ID] [P?] [Story] Description`
 
-## Parallel Execution Examples
+- **[P]**: Can run in parallel (different files, no dependencies)
+- **[Story]**: Which user story this belongs to (e.g., US1, US2, US3)
+- Include exact file paths in descriptions
 
-- **US2 (Vector Search)** and **US3 (Retrieval Result Validation)** can be developed in parallel once **US1 (Query Embedding)** is complete
-- Model implementations can run in parallel once foundational setup is done
+## Path Conventions
 
-## Phase 1: Setup
+- **Server project**: `server/src/`, `server/tests/` in server directory
+- Paths shown below follow this structure
 
-**Goal**: Initialize project structure and dependencies
+## Phase 1: Setup (Shared Infrastructure)
 
-- [X] T001 Create project structure in server/ per implementation plan
-- [X] T002 Update requirements.txt with dependencies: cohere, qdrant-client, python-dotenv, PyYAML, pytest
-- [X] T003 Create .env.example with environment variable placeholders
-- [X] T004 Set up basic configuration in server/src/config/settings.py
-- [X] T005 Create logging utility in server/src/utils/logger.py
-- [X] T006 Create utility functions in server/src/utils/helpers.py
-- [X] T007 Create validators in server/src/utils/validators.py
+**Purpose**: Project initialization and basic structure
 
-## Phase 2: Foundational Components
+- [X] T001 Update requirements.txt with any missing dependencies for Cohere and Qdrant
+- [X] T002 [P] Create basic configuration for Cohere and Qdrant in server/src/config/
+- [X] T003 [P] Verify existing rag_service.py structure aligns with requirements
+- [X] T004 [P] Verify existing test_retrieval.py structure aligns with requirements
 
-**Goal**: Create foundational components that will be used across multiple user stories
+---
 
-- [X] T008 [P] Create Query model in server/src/models/query.py
-- [X] T009 [P] Create QueryVector model in server/src/models/query_vector.py
-- [X] T010 [P] Create RetrievedChunk model in server/src/models/retrieved_chunk.py
-- [X] T011 [P] Create RetrievalResult model in server/src/models/retrieval_result.py
-- [X] T012 [P] Create SearchMetadata model in server/src/models/search_metadata.py
-- [X] T013 Create Qdrant client configuration and initialization in server/src/config/qdrant_config.py
-- [X] T014 [P] Create base service class in server/src/services/base_service.py
+## Phase 2: Foundational (Blocking Prerequisites)
 
-## Phase 3: User Story 1 - Query Embedding (Priority: P1)
+**Purpose**: Core infrastructure that MUST be complete before ANY user story can be implemented
 
-**Goal**: Implement the ability to convert text queries into vector embeddings
+**⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-**Independent Test Criteria**: Can run the retrieval function with a text query and verify that it's properly converted to a vector representation.
+- [X] T005 Create base service class in server/src/services/base_service.py if not already complete
+- [X] T006 [P] Create Cohere client wrapper in server/src/services/cohere_client.py
+- [X] T007 [P] Create Qdrant search service in server/src/services/qdrant_search_service.py
+- [X] T008 [P] Create result processor in server/src/services/result_processor.py
+- [X] T009 Create Qdrant configuration in server/src/config/qdrant_config.py
+- [X] T010 Create settings configuration in server/src/config/settings.py
+- [X] T011 [P] Create data models: Query in server/src/models/query.py
+- [X] T012 [P] Create data models: QueryVector in server/src/models/query_vector.py
+- [X] T013 [P] Create data models: RetrievedChunk in server/src/models/retrieved_chunk.py
+- [X] T014 [P] Create data models: RetrievalResult in server/src/models/retrieval_result.py
+- [X] T015 [P] Create data models: SearchMetadata in server/src/models/search_metadata.py
+- [X] T016 [P] Create utility functions: validators in server/src/utils/validators.py
+- [X] T017 [P] Create utility functions: helpers in server/src/utils/helpers.py
 
-**Acceptance Scenarios**:
-1. Given I have a text query string, When I call the retrieval function, Then the query is converted to a vector using Cohere's embed-english-v3.0 model
-2. Given I have a text query and valid Cohere API credentials, When I call the embedding function, Then a vector is generated without authentication errors
+**Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
-- [X] T015 [US1] Create Cohere API client wrapper in server/src/services/cohere_client.py
-- [X] T016 [P] [US1] Implement get_embedding function that calls Cohere API with embed-english-v3.0 model
-- [X] T017 [P] [US1] Add error handling for Cohere API calls
-- [X] T018 [P] [US1] Implement rate limiting for Cohere API calls
-- [X] T019 [P] [US1] Add input validation for text queries
-- [X] T020 [P] [US1] Create Query model instance with text and metadata
-- [X] T021 [P] [US1] Create QueryVector model instance with embedding vector
-- [X] T022 [US1] Write unit tests for query embedding functionality in server/tests/unit/test_query_embedding.py
+---
+
+## Phase 3: User Story 1 - Query Embedding (Priority: P1) 🎯 MVP
+
+**Goal**: Convert text queries into vector embeddings using Cohere API
+
+**Independent Test**: Can run the retrieval function with a text query and verify that it's properly converted to a vector representation
+
+### Implementation for User Story 1
+
+- [X] T018 [US1] Implement get_embedding function in server/rag_service.py to convert text to vector
+- [X] T019 [US1] Validate environment variables (COHERE_API_KEY, QDRANT_URL) in rag_service.py
+- [X] T020 [US1] Test Cohere embedding generation with embed-english-v3.0 model in cohere_client.py
+- [X] T021 [US1] Add error handling for Cohere API calls in cohere_client.py
+- [X] T022 [US1] Add rate limiting to Cohere client to comply with API constraints
+
+**Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
+
+---
 
 ## Phase 4: User Story 2 - Vector Search (Priority: P1)
 
-**Goal**: Implement the ability to perform cosine similarity searches in Qdrant Cloud
+**Goal**: Perform cosine similarity searches in Qdrant Cloud to retrieve relevant text chunks
 
-**Independent Test Criteria**: Can perform a search with a query vector and verify that the top 3-5 most relevant text chunks are returned.
+**Independent Test**: Can perform a search with a query vector and verify that the top 3-5 most relevant text chunks are returned
 
-**Acceptance Scenarios**:
-1. Given I have a query vector, When I perform a cosine similarity search in Qdrant, Then the top 3-5 most relevant text chunks are returned
-2. Given I have a query vector and appropriate search parameters, When I perform a search, Then results are returned with minimal latency
+### Implementation for User Story 2
 
-- [X] T023 [US2] Create Qdrant search service in server/src/services/qdrant_search_service.py
-- [X] T024 [P] [US2] Implement cosine similarity search in Qdrant
-- [X] T025 [P] [US2] Set search parameters to return top 3-5 results
-- [X] T026 [P] [US2] Add filtering capabilities for search results
-- [X] T027 [P] [US2] Implement error handling for Qdrant API calls
-- [X] T028 [P] [US2] Optimize search parameters for performance
-- [X] T029 [US2] Write unit tests for vector search functionality in server/tests/unit/test_vector_search.py
+- [X] T023 [US2] Implement search_knowledge_base function in server/rag_service.py
+- [X] T024 [US2] Integrate get_embedding with vector search functionality in rag_service.py
+- [X] T025 [US2] Implement Qdrant vector search with cosine similarity in qdrant_search_service.py
+- [X] T026 [US2] Configure Qdrant search to return top 3-5 results in qdrant_search_service.py
+- [X] T027 [US2] Add search result processing and validation in result_processor.py
+- [X] T028 [US2] Add error handling for Qdrant API calls in qdrant_search_service.py
+
+**Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
+
+---
 
 ## Phase 5: User Story 3 - Retrieval Result Validation (Priority: P1)
 
-**Goal**: Implement the ability to verify that retrieval results include proper metadata
+**Goal**: Ensure retrieval results include proper metadata to verify source and relevance of content
 
-**Independent Test Criteria**: Can run the retrieval function and verify that results include metadata such as source URL/file path.
+**Independent Test**: Can run the retrieval function and verify that results include metadata such as source URL/file path
 
-**Acceptance Scenarios**:
-1. Given I have performed a retrieval query, When I examine the results, Then each result includes metadata (source URL/file path) to verify the data's origin
-2. Given I have retrieved content, When I validate the metadata, Then the source information is accurate and traceable
+### Implementation for User Story 3
 
-- [X] T030 [US3] Create retrieval result processor in server/src/services/result_processor.py
-- [X] T031 [P] [US3] Extract metadata from Qdrant search results
-- [X] T032 [P] [US3] Validate metadata fields (source URL, file path, etc.)
-- [X] T033 [P] [US3] Create RetrievedChunk model instances with content and metadata
-- [X] T034 [P] [US3] Create RetrievalResult model with all retrieved chunks
-- [X] T035 [P] [US3] Calculate relevance scores and search timing
-- [X] T036 [US3] Write unit tests for retrieval result validation in server/tests/unit/test_result_validation.py
+- [X] T029 [US3] Validate metadata inclusion in search results in qdrant_search_service.py
+- [X] T030 [US3] Ensure source URL and file path are included in RetrievedChunk model
+- [X] T031 [US3] Add metadata validation in result_processor.py
+- [X] T032 [US3] Test metadata accuracy and traceability in rag_service.py
+- [X] T033 [US3] Verify embedding model consistency with ingestion pipeline
+
+**Checkpoint**: All user stories should now be independently functional
+
+---
 
 ## Phase 6: User Story 4 - Standalone Testing (Priority: P2)
 
 **Goal**: Create a standalone test script that validates the retrieval functionality
 
-**Independent Test Criteria**: Can run the test script and verify that it queries the system and prints retrieved text to the console.
+**Independent Test**: Can run the test script and verify that it queries the system and prints retrieved text to the console
 
-**Acceptance Scenarios**:
-1. Given I have the test script, When I run it with a query like "What is a Node?", Then it prints the retrieved text to the console for verification
-2. Given I have the test script, When I run it, Then it properly exercises the retrieval pipeline end-to-end
+### Implementation for User Story 4
 
-- [X] T037 [US4] Create main RAG service in server/rag_service.py
-- [X] T038 [P] [US4] Implement get_embedding function that wraps Cohere API call
-- [X] T039 [P] [US4] Implement search_knowledge_base function that orchestrates embedding creation -> Qdrant search
-- [X] T040 [P] [US4] Handle environment variables for Cohere and Qdrant
-- [X] T041 [P] [US4] Add proper error handling and logging
-- [X] T042 [US4] Create standalone validation script in server/test_retrieval.py
-- [X] T043 [P] [US4] Implement "What is a Node?" query in test script
-- [X] T044 [P] [US4] Print raw search results (score + payload) to console
-- [X] T045 [US4] Write integration tests for the full retrieval pipeline in server/tests/integration/test_retrieval_pipeline.py
+- [X] T034 [US4] Complete standalone test script in server/test_retrieval.py
+- [X] T035 [US4] Add sample query "What is a node?" to test_retrieval.py
+- [X] T036 [US4] Implement console output of retrieved text and metadata in test_retrieval.py
+- [X] T037 [US4] Add error handling for test script in test_retrieval.py
+- [X] T038 [US4] Validate that test script exercises the full retrieval pipeline
 
-## Phase 7: API Implementation
+**Checkpoint**: All user stories should be functional and validated
 
-**Goal**: Create API endpoints for the retrieval service
+---
 
-- [X] T046 Create retrieval API in server/src/api/retrieval_api.py
-- [X] T047 [P] Implement POST /api/v1/search endpoint
-- [X] T048 [P] Implement GET /api/v1/search/{query_id} endpoint
-- [X] T049 [P] Add authentication and rate limiting to API endpoints
-- [X] T050 [P] Add request validation for API endpoints
-- [X] T051 Write contract tests for API endpoints in server/tests/contract/test_api_contracts.py
+## Phase 7: Polish & Cross-Cutting Concerns
 
-## Phase 8: Polish & Cross-Cutting Concerns
+**Purpose**: Improvements that affect multiple user stories
 
-**Goal**: Add finishing touches and ensure quality
+- [X] T039 [P] Documentation updates including implementation details in server/README.md
+- [X] T040 Code cleanup and refactoring to ensure PEP 8 compliance
+- [ ] T041 Performance optimization of search latency (target <500ms)
+- [X] T042 [P] Add logging for Cohere and Qdrant API calls with error handling
+- [ ] T043 Security hardening for API key handling
+- [X] T044 Run quickstart.md validation to ensure everything works as expected
+- [X] T045 Final constitution compliance check for tech stack and architecture
 
-- [ ] T052 Add comprehensive error handling throughout the application
-- [ ] T053 Implement proper logging with different log levels
-- [ ] T054 Add configuration validation and defaults
-- [X] T055 Create README.md with setup and usage instructions
-- [ ] T056 Add type hints to all functions and classes
-- [ ] T057 Perform code review and refactoring as needed
-- [ ] T058 Run full test suite to ensure all components work together
-- [ ] T059 Document any remaining implementation details in the codebase
+---
+
+## Dependencies & Execution Order
+
+### Phase Dependencies
+
+- **Setup (Phase 1)**: No dependencies - can start immediately
+- **Foundational (Phase 2)**: Depends on Setup completion - BLOCKS all user stories
+- **User Stories (Phase 3+)**: All depend on Foundational phase completion
+  - User stories can then proceed in parallel (if staffed)
+  - Or sequentially in priority order (P1 → P2 → P3 → P4)
+- **Polish (Final Phase)**: Depends on all desired user stories being complete
+
+### User Story Dependencies
+
+- **User Story 1 (P1)**: Can start after Foundational (Phase 2) - No dependencies on other stories
+- **User Story 2 (P2)**: Depends on US1 - Builds on query embedding functionality
+- **User Story 3 (P3)**: Depends on US2 - Validates results from search functionality
+- **User Story 4 (P4)**: Depends on US1, US2, US3 - Tests the complete pipeline
+
+### Within Each User Story
+
+- Core implementation before integration
+- Story complete before moving to next priority
+
+### Parallel Opportunities
+
+- All Setup tasks marked [P] can run in parallel
+- All Foundational tasks marked [P] can run in parallel (within Phase 2)
+- Once Foundational phase completes, all user stories can start in parallel (if team capacity allows)
+
+---
+
+## Parallel Example: User Story 1
+
+```bash
+# Launch all components for User Story 1 together:
+Task: "Implement get_embedding function in server/rag_service.py"
+Task: "Validate environment variables in rag_service.py"
+Task: "Test Cohere embedding generation in cohere_client.py"
+```
+
+---
+
+## Implementation Strategy
+
+### MVP First (User Stories 1-3 Only)
+
+1. Complete Phase 1: Setup
+2. Complete Phase 2: Foundational (CRITICAL - blocks all stories)
+3. Complete Phase 3: User Story 1
+4. Complete Phase 4: User Story 2
+5. Complete Phase 5: User Story 3
+6. **STOP and VALIDATE**: Test User Stories 1-3 together
+7. Deploy/demo if ready
+
+### Incremental Delivery
+
+1. Complete Setup + Foundational → Foundation ready
+2. Add User Story 1 → Test independently → Deploy/Demo
+3. Add User Story 2 → Test with US1 → Deploy/Demo
+4. Add User Story 3 → Test with US1&2 → Deploy/Demo
+5. Add User Story 4 → Test complete pipeline → Deploy/Demo
+6. Each story adds value without breaking previous stories
+
+### Parallel Team Strategy
+
+With multiple developers:
+
+1. Team completes Setup + Foundational together
+2. Once Foundational is done:
+   - Developer A: User Story 1
+   - Developer B: User Story 2
+   - Developer C: User Story 3
+   - Developer D: User Story 4
+3. Stories complete and integrate independently
+
+---
+
+## Notes
+
+- [P] tasks = different files, no dependencies
+- [Story] label maps task to specific user story for traceability
+- Each user story should be independently completable and testable
+- Verify tests fail before implementing
+- Commit after each task or logical group
+- Stop at any checkpoint to validate story independently
+- Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence
